@@ -8,6 +8,7 @@ import pandas as pd
 openai.api_key = config.OPENAI_API_KEY
 
 
+
 if __name__ == '__main__':
 
     #TODO: How to create github repo from PyCharm?
@@ -19,6 +20,6 @@ if __name__ == '__main__':
     # Response without fine-tuning:
     #"\n\nIt is not possible to answer this question without more information."
 
-    # df = pd.read_csv("Airlines.csv")
+    # df = pd.read_csv("airlines.csv")
     # print(df.columns)
     # print(df.iloc[1])

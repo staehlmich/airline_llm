@@ -1,0 +1,41 @@
+Following this video, to generate prompts for Q&A fine-tuning on a .csv file:
+https://www.youtube.com/watch?v=3EdEw4gyr-s&ab_channel=LiamOttley
+
+Prompt 1:
+I have a spreadsheet of airlines data.
+
+These are the column headings in csv format:
+Flight          float64
+Time            float64
+Length          float64
+Airline          object
+AirportFrom      object
+AirportTo        object
+DayOfWeek      category
+Delay            object
+
+Here are example rows of data in csv format:
+   Flight   Time  Length Airline AirportFrom AirportTo DayOfWeek Delay
+0  2313.0  21.60   141.0      DL         ATL       HOU       Mon    no
+1  6948.0   6.00   146.0      OO         COS       ORD       Thu    no
+2  1247.0  19.50   143.0      B6         BOS       CLT       Wed    no
+3    31.0  23.50   344.0      US         OGG       PHX       Sat    no
+4   563.0  11.53    98.0      FL         BMI       ATL       Thu    no
+
+Do you understand?
+
+Prompt 2:
+
+I want to use this data to fine tune GPT-3.
+
+Write me a python script to create prompt and completion pairs in this format:
+{"prompt": "<prompt text>", "completion": "<ideal generated text>"}
+{"prompt": "<prompt text>", "completion": "<ideal generated text>"}
+{"prompt": "<prompt text>", "completion": "<ideal generated text>"}
+
+I want each completion to contain a written summary of all data for that Flight using string interpolation.
+
+When inserting the data remember to use the full name of the column from the csv.
+
+The prompt and completion pairs need to be exported to a json file.
+

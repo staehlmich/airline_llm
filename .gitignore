@@ -1,4 +1,4 @@
 config.py
 fine_tune_project.txt
-airlines.csv
+data/airlines.csv
 __pycache__

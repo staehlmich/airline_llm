@@ -2,3 +2,4 @@ config.py
 fine_tune_project.txt
 data/airlines.csv
 __pycache__
+data/prompt*

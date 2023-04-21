@@ -1,5 +1,6 @@
 config.py
 fine_tune_project.txt
+prompt_generation.txt
 data/airlines.csv
 __pycache__
 data/prompt*

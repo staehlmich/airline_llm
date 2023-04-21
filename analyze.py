@@ -23,8 +23,10 @@ def format_dataset(df):
     #Renaming DayOfWEek and ordering
     days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
     df['DayOfWeek'] = pd.Categorical(df['DayOfWeek'].map({1: 'Mon', 2: 'Tue', 3:'Wed', 4:'Thu', 5:'Fri', 6:'Sat', 7:'Sun'}), days)
-    #Departure time in hours (am/pm)
+    #Departure time in hours (am/pm) and rename row
     df['Time'] = (df['Time']/60).round(2)
+    df["DepartureTime"] = df["Time"]
+    df = df.drop(["Time"], axis=1)
 
     return df
 

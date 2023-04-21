@@ -91,7 +91,7 @@ if __name__ == '__main__':
     df = pd.read_csv("data/airlines_delay.csv")
     df = format_dataset(df)
     #Generate completion pairs and write to file.
-    # generate_prompts(df)
+    generate_prompts(df)
 
     #Generate small dataset for direct input to LLM prompt.
-    # write_random_rows_to_csv(df, "data/airlines_delay_small.csv")
+    write_random_rows_to_csv(df, "data/airlines_delay_small.csv")

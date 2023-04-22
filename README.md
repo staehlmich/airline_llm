@@ -1,4 +1,4 @@
-# swissair_llm
+# airline_llm
 
 This repository is an attempt to customize OPENAI's LLM to handle passenger requests regarding flight information. To simulate passenger flight information, the [airline_delays](https://www.kaggle.com/datasets/ulrikthygepedersen/airlines-delay) dataset is used.
 

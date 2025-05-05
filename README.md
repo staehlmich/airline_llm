@@ -1,121 +1,51 @@
-# RAG Implementation for Airline Data
+# Airline Delay Analysis Assistant: Evolution from Fine-Tuning to RAG
+## Project Overview
+This repository contains an AI-powered assistant for analyzing airline delay data. The project has evolved through multiple approaches, showcasing the advancement of LLM application techniques from basic fine-tuning to RAG (Retrieval-Augmented Generation) systems.
+## Evolution Timeline
+### Stage 1: OpenAI Fine-Tuning Approach (v1)
+Our initial approach utilized OpenAI's fine-tuning capabilities to create a specialized model for airline delay analysis. This method involved:
+- Creating a custom dataset of airline delay Q&A pairs
+- Fine-tuning the OpenAI base model on this domain-specific data
+- Deploying the fine-tuned model to answer queries about airline delays
 
-## Overview
+While this approach produced good results for standard questions within the fine-tuning dataset, it had limitations with novel queries and couldn't adapt to new data without retraining.
+### Stage 2: Context-in-Prompt Approach
+As an intermediate step, we explored embedding relevant context directly in prompts:
+- Preprocessing the airline data into digestible chunks
+- Using basic retrieval mechanisms to find relevant data for a query
+- Including this data directly in the prompt sent to the LLM
 
-This branch introduces a production-ready implementation of Retrieval Augmented Generation (RAG) for answering questions about airline flight data. The system uses a SQL database as the knowledge source and leverages LangChain and OpenAI's models to provide accurate responses to natural language queries about flight information.
+This improved flexibility but was limited by context window constraints and lacked sophistication in retrieval.
+Manual inspection showed that the accuracy of the answer was quite low. 
+### Stage 3: RAG System (v2)
+Our current implementation leverages a full Retrieval-Augmented Generation (RAG) system built with [LangChain](https://www.langchain.com/):
+- **Vector Database**: Airline data is embedded and stored in a vector database for semantic search
+- **Advanced Retrieval**: LangChain's query-aware chunking and hybrid search algorithms find the most relevant information
+- **LLM Integration**: Retrieved content is intelligently incorporated into prompts using LangChain's chains and agents
+- **Evaluation Framework**: Comprehensive metrics provided by [Giskard](https://giskard.ai/) to measure accuracy, relevance, and bias in model responses
 
-## Features
+LangChain provides the flexible framework that powers our RAG pipeline, enabling modular components that can be swapped or upgraded as needed. Giskard's evaluation suite allows us to systematically test and validate our system, ensuring reliability and identifying areas for improvement.
 
-- **Modular Architecture**: Code organized into a well-structured class with clear responsibilities
-- **Database Integration**: Uses SQLite to store and query flight data
-- **Configuration Management**: External YAML configuration for easy customization
-- **Robust Error Handling**: Comprehensive error handling and logging
-- **Evaluation Framework**: Integration with Giskard for automated RAG system evaluation
-- **Interactive Q&A**: Support for answering individual questions or running in interactive mode
 
-## Requirements
+## Usage
+### Installation
+``` bash
+# Clone the repository
+git clone https://github.com/yourusername/airline-delay-analysis.git
+cd airline-delay-analysis
 
-- Python 3.8+
-- OpenAI API key (set as environment variable `OPENAI_API_KEY`)
-- Required packages (see `requirements.txt`)
+# Set up virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-## Project Structure
-
+# Install dependencies
+pip install -r requirements.txt
 ```
-.
-├── config.yaml              # Configuration settings
-├── rag_fly.py            # Main RAG implementation
-├── data/                    # Data directory
-│   └── airlines_delay_sample.csv  # Flight delay dataset
-├── requirements.txt         # Project dependencies
-└── README.md                # This documentation
+### Configuration
+1. Create a `config.yaml` file with your API keys and settings
+2. Place your airline data in the `data/` directory
+
+### Running the RAG System
+``` bash
+python rag_system.py --query "What are the main causes of delays in Chicago?"
 ```
-
-
-## Configuration
-
-The system is configured through a YAML file (`config.yaml`) with the following structure:
-
-```yaml
-data:
-  csv_path: "data/airlines_delay_sample.csv"
-  db_path: "airlines_delay_sample.db"
-  table_name: "AirlinesDelay"
-
-model:
-  name: "gpt-3.5-turbo"
-  temperature: 0
-
-evaluation:
-  num_questions: 60
-  agent_description: "A chatbot answering questions about flights"
-  report_path: "report.html"
-```
-
-
-## Usage Examples
-
-### Basic Usage
-
-```python
-from rag_fly import RagSystem
-
-# Initialize the system
-rag = RagSystem()
-rag.setup_database()
-rag.create_rag_chain()
-
-# Ask a question
-answer = rag.answer_question("Which airline has the most delays?")
-print(f"Answer: {answer}")
-```
-
-
-### Running Multiple Queries
-
-```python
-questions = [
-    "How many flights were delayed by more than 30 minutes?",
-    "What is the average delay time for United Airlines?",
-    "Which day of the week has the most flight cancellations?"
-]
-
-for question in questions:
-    print(f"\nQuestion: {question}")
-    answer = rag.answer_question(question)
-    print(f"Answer: {answer}")
-```
-
-
-### Interactive Mode
-
-```python
-print("Interactive mode. Type questions or press Enter to exit.")
-while True:
-    question = input("\nQuestion: ")
-    if not question:
-        break
-    answer = rag.answer_question(question)
-    print(f"Answer: {answer}")
-```
-
-
-### Running Evaluation
-
-```python
-# Setup and run evaluation
-rag.setup_evaluation()
-rag.run_evaluation()
-print(f"Evaluation report saved to {rag.config['evaluation']['report_path']}")
-```
-
-
-## How It Works
-
-1. **Database Setup**: The system converts CSV data into a SQLite database for efficient querying
-2. **RAG Chain Creation**: A LangChain-based RAG pipeline is created to:
-   - Convert natural language questions to SQL queries
-   - Execute SQL queries against the database
-   - Format results into natural language responses
-3. **Question Answering**: The system processes user questions through the RAG chain to provide answers
-4. **Evaluation**: The system can generate test questions and evaluate its own performance

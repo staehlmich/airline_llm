@@ -231,7 +231,9 @@ def main():
         questions = [
             "How many flights were delayed by more than 30 minutes?",
             "What is the average delay time for United Airlines?",
-            "Which day of the week has the most flight cancellations?"
+            "Which day of the week has the most flight cancellations?",
+            "It is currently 11:30. What are the next 5 flights?",
+            "It is currently 11:30. When is the next flight for AA?" #Checking time format + query with 2 variables
         ]
 
         print("Multiple questions example:")
@@ -240,13 +242,13 @@ def main():
             answer = rag_system.answer_question(question)
             print(f"Answer: {answer}")
 
-        # Setup evaluation
-        rag_system.setup_evaluation()
-
-        # Run evaluation
-        rag_system.run_evaluation()
-
-        logger.info("RAG system evaluation completed successfully")
+        # # Setup evaluation
+        # rag_system.setup_evaluation()
+        #
+        # # Run evaluation
+        # rag_system.run_evaluation()
+        #
+        # logger.info("RAG system evaluation completed successfully")
 
     except Exception as e:
         logger.error(f"An error occurred in the main function: {e}")

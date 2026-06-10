@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional
 import pandas as pd
 import yaml
 # Import Giskard for evaluation
-from giskard.rag import KnowledgeBase, generate_testset, evaluate
+from giskard.rag import KnowledgeBase, generate_testset, evaluate, QATestset
 from langchain.chains import create_sql_query_chain
 from langchain_community.tools.sql_database.tool import QuerySQLDataBaseTool
 from langchain_community.utilities import SQLDatabase
@@ -55,6 +55,7 @@ class RagSystem:
                 config = yaml.safe_load(file)
                 logger.info(f"Configuration loaded from {config_path}")
                 return config
+        #TODO: Probably unnecessary.
         except Exception as e:
             logger.error(f"Failed to load configuration: {e}")
             # Fallback to default configuration
@@ -127,8 +128,8 @@ class RagSystem:
 
             # Create prompt
             answer_prompt = PromptTemplate.from_template(
-                """Given the following user question, corresponding SQL query, and SQL result, answer the user question. If you can't
-                answer the question, reply "I don't know".
+                """Given the following user question, corresponding SQL query, and SQL result, answer the user question. 
+                If the data doesn't allow to answer the question, reply "I don't have the data to answer your question".
 
                 Question: {question}
                 SQL Query: {query}
@@ -151,29 +152,6 @@ class RagSystem:
             logger.error(f"Failed to create RAG chain: {e}")
             raise
 
-    def setup_evaluation(self) -> None:
-        """Set up knowledge base and test set for evaluation."""
-        try:
-            if self.df is None:
-                raise ValueError("DataFrame not initialized. Call setup_database() first.")
-
-            self.knowledge_base = KnowledgeBase(self.df)
-
-            num_questions = self.config["evaluation"]["num_questions"]
-            agent_description = self.config["evaluation"]["agent_description"]
-
-            self.testset = generate_testset(
-                self.knowledge_base,
-                num_questions=num_questions,
-                agent_description=agent_description,
-            )
-
-            logger.info(f"Evaluation setup complete. Test set with {num_questions} questions created.")
-
-        except Exception as e:
-            logger.error(f"Failed to setup evaluation: {e}")
-            raise
-
     def answer_question(self, question: str, history: Optional[list] = None) -> str:
         """
         Answer a user question using the RAG chain.
@@ -194,11 +172,41 @@ class RagSystem:
             logger.error(f"Error answering question: {e}")
             return "I'm sorry, I couldn't process your question."
 
+    def _setup_evaluation(self) -> None:
+        """Set up knowledge base and test set for evaluation."""
+        try:
+            if self.df is None:
+                raise ValueError("DataFrame not initialized. Call setup_database() first.")
+
+            self.knowledge_base = KnowledgeBase(self.df)
+            testset_path = "testset.json"
+
+            if os.path.exists(testset_path):
+                logger.info(f"Loading existing test set from {testset_path}")
+                self.testset = QATestset.load(testset_path)
+            else:
+                num_questions = self.config["evaluation"]["num_questions"]
+                agent_description = self.config["evaluation"]["agent_description"]
+
+                self.testset = generate_testset(
+                    self.knowledge_base,
+                    num_questions=num_questions,
+                    agent_description=agent_description,
+                )
+                self.testset.save(testset_path)
+                logger.info(f"New test set created and saved to {testset_path}")
+
+        except Exception as e:
+            logger.error(f"Failed to setup evaluation: {e}")
+            raise
+
     def run_evaluation(self) -> None:
         """Run the evaluation on the test set and generate a report."""
         try:
+            # Automatically set up evaluation if it hasn't been done yet
             if self.testset is None or self.knowledge_base is None:
-                raise ValueError("Evaluation not set up. Call setup_evaluation() first.")
+                logger.info("Evaluation components not found. Initializing setup...")
+                self._setup_evaluation()
 
             def answer_fn(question, history=None):
                 return self.answer_question(question, history)
@@ -227,7 +235,7 @@ def main():
         # Create the RAG chain
         rag_system.create_rag_chain()
 
-        # Example:  Multiple questions in sequence
+        # Example: Multiple questions in sequence
         questions = [
             "How many flights were delayed by more than 30 minutes?",
             "What is the average delay time for United Airlines?",
@@ -242,13 +250,10 @@ def main():
             answer = rag_system.answer_question(question)
             print(f"Answer: {answer}")
 
-        # # Setup evaluation
-        # rag_system.setup_evaluation()
-        #
-        # # Run evaluation
-        # rag_system.run_evaluation()
-        #
-        # logger.info("RAG system evaluation completed successfully")
+        # Run evaluation with automatic setup. Reuse Giskard generated test set if available.
+        rag_system.run_evaluation()
+
+        logger.info("RAG system evaluation completed successfully")
 
     except Exception as e:
         logger.error(f"An error occurred in the main function: {e}")

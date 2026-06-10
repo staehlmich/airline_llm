@@ -73,7 +73,7 @@ def main():
     df_formatted = format_dataset(df_sample)
 
 
-    df_formatted.to_csv("data/airlines_sample.csv")
+    df_formatted.to_csv("data/airlines_delay_sample.csv", index=False)
 
 
 if __name__ == "__main__":

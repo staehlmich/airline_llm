@@ -122,9 +122,32 @@ class RagSystem:
             temperature = self.config["model"]["temperature"]
             llm = ChatOpenAI(model=model_name, temperature=temperature)
 
+            # Add custom prompt with column descriptions
+            template = """
+            Given an input question, create a syntactically correct {dialect} query to run.
+            Unless the user specifies in his question a specific number of examples he wishes to obtain, 
+            always limit your query to at most {top_k} results.
+
+            Here is the relevant table info:
+            {table_info}
+
+            Additional column information:
+            - Flight: Unique flight number identifier (not unique per row).
+            - DepartureTime: Scheduled departure time in 24-hour format (HH:MM, e.g., 19:00, 13:47)
+            - Length: Flight duration in HH:MM format (e.g., 01:59, 03:43)
+            - Airline: Two-letter airline code (e.g., DL=Delta, UA=United, WN=Southwest, AA=American Airlines)
+            - AirportFrom: Origin airport code (3-letter IATA code, e.g., MEM, DEN, BWI)
+            - AirportTo: Destination airport code (3-letter IATA code, e.g., MCO, EWR, PIT)
+            - DayOfWeek: Day of the week (Mon, Tue, Wed, Thu, Fri, Sat, Sun)
+            - Delay: Whether the flight is delayed (values: 'yes' or 'no')
+            
+            Question: {input}"""
+            custom_prompt = PromptTemplate.from_template(template)
+
+
             # Create tools
             execute_query = QuerySQLDataBaseTool(db=self.db)
-            write_query = create_sql_query_chain(llm, self.db)
+            write_query = create_sql_query_chain(llm, self.db, prompt=custom_prompt)
 
             # Create prompt
             answer_prompt = PromptTemplate.from_template(
@@ -235,25 +258,25 @@ def main():
         # Create the RAG chain
         rag_system.create_rag_chain()
 
-        # Example: Multiple questions in sequence
-        questions = [
-            "How many flights were delayed by more than 30 minutes?",
-            "What is the average delay time for United Airlines?",
-            "Which day of the week has the most flight cancellations?",
-            "It is currently 11:30. What are the next 5 flights?",
-            "It is currently 11:30. When is the next flight for AA?" #Checking time format + query with 2 variables
-        ]
-
-        print("Multiple questions example:")
-        for question in questions:
-            print(f"\nQuestion: {question}")
-            answer = rag_system.answer_question(question)
-            print(f"Answer: {answer}")
+        # # Example: Multiple questions in sequence
+        # questions = [
+        #     "How many flights were delayed by more than 30 minutes?",
+        #     "What is the average delay time for United Airlines?",
+        #     "Which day of the week has the most flight cancellations?",
+        #     "It is currently 11:30. What are the next 5 flights?",
+        #     "It is currently 11:30. When is the next flight for AA?" #Checking time format + query with 2 variables
+        # ]
+        #
+        # print("Multiple questions example:")
+        # for question in questions:
+        #     print(f"\nQuestion: {question}")
+        #     answer = rag_system.answer_question(question)
+        #     print(f"Answer: {answer}")
 
         # Run evaluation with automatic setup. Reuse Giskard generated test set if available.
         rag_system.run_evaluation()
 
-        logger.info("RAG system evaluation completed successfully")
+        # logger.info("RAG system evaluation completed successfully")
 
     except Exception as e:
         logger.error(f"An error occurred in the main function: {e}")

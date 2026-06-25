@@ -3,19 +3,23 @@ import os
 import sqlite3
 from operator import itemgetter
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 import pandas as pd
 import yaml
 # Import Giskard for evaluation
 from giskard.rag import KnowledgeBase, generate_testset, evaluate, QATestset
 from langchain.chains import create_sql_query_chain
-from langchain_community.tools.sql_database.tool import QuerySQLDataBaseTool
+from langchain_community.tools.sql_database.tool import QuerySQLDatabaseTool
 from langchain_community.utilities import SQLDatabase
+from langchain_core.chat_history import BaseChatMessageHistory, InMemoryChatMessageHistory
+from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import PromptTemplate
-from langchain_core.runnables import RunnablePassthrough
-from langchain_openai.chat_models import ChatOpenAI
+from langchain_core.prompts import MessagesPlaceholder
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough, RunnableLambda
+from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_openai import ChatOpenAI
 
 # Configure logging
 logging.basicConfig(
@@ -39,6 +43,7 @@ class RagSystem:
         self.rag_chain = None
         self.knowledge_base = None
         self.testset = None
+        self.history_store: Dict[str, BaseChatMessageHistory] = {}
 
     def _load_config(self, config_path: str) -> Dict[str, Any]:
         """
@@ -51,30 +56,21 @@ class RagSystem:
             Dict containing configuration parameters
         """
         try:
-            with open(config_path, 'r') as file:
+            with open(config_path, "r") as file:
                 config = yaml.safe_load(file)
-                logger.info(f"Configuration loaded from {config_path}")
-                return config
-        #TODO: Probably unnecessary.
-        except Exception as e:
-            logger.error(f"Failed to load configuration: {e}")
-            # Fallback to default configuration
-            return {
-                "data": {
-                    "csv_path": "data/airlines_delay_sample.csv",
-                    "db_path": "airlines_delay_sample.db",
-                    "table_name": "AirlinesDelay"
-                },
-                "model": {
-                    "name": "gpt-3.5-turbo",
-                    "temperature": 0
-                },
-                "evaluation": {
-                    "num_questions": 60,
-                    "agent_description": "A chatbot answering questions about flights",
-                    "report_path": "report.html"
-                }
-            }
+
+                if not config:
+                    raise ValueError(f"Configuration file '{config_path}' is empty")
+
+            logger.info(f"Configuration loaded from {config_path}")
+            return config
+
+        except FileNotFoundError:
+            logger.error(f"Configuration file not found: {config_path}")
+            raise
+        except yaml.YAMLError as e:
+            logger.error(f"Invalid YAML in configuration file: {e}")
+            raise
 
     def setup_database(self) -> None:
         """Set up the SQLite database from the CSV file."""
@@ -120,7 +116,19 @@ class RagSystem:
             # Create LLM
             model_name = self.config["model"]["name"]
             temperature = self.config["model"]["temperature"]
-            llm = ChatOpenAI(model=model_name, temperature=temperature)
+
+            #Hotfix for stop-parameter error in newer models.
+            #TODO: removing this changes output
+            original_generate = ChatOpenAI._generate
+
+            def patched_generate(self, messages, stop=None, **kwargs):
+                kwargs.pop("stop", None)
+                return original_generate(self, messages, **kwargs)
+
+            ChatOpenAI._generate = patched_generate
+
+            llm = ChatOpenAI(
+                model=model_name)
 
             # Add custom prompt with column descriptions
             template = """
@@ -139,34 +147,73 @@ class RagSystem:
             - AirportFrom: Origin airport code (3-letter IATA code, e.g., MEM, DEN, BWI)
             - AirportTo: Destination airport code (3-letter IATA code, e.g., MCO, EWR, PIT)
             - DayOfWeek: Day of the week (Mon, Tue, Wed, Thu, Fri, Sat, Sun)
-            - Delay: Whether the flight is delayed (values: 'yes' or 'no')
-            
+            - Delay: Whether the flight is delayed (value ==  'yes')
+
             Question: {input}"""
-            custom_prompt = PromptTemplate.from_template(template)
+            custom_prompt = ChatPromptTemplate.from_template(template)
 
 
-            # Create tools
-            execute_query = QuerySQLDataBaseTool(db=self.db)
-            write_query = create_sql_query_chain(llm, self.db, prompt=custom_prompt)
+            # Sequence: chat with history -> rewrite question -> SQL query -> execute -> answer
 
-            # Create prompt
-            answer_prompt = PromptTemplate.from_template(
-                """Given the following user question, corresponding SQL query, and SQL result, answer the user question. 
-                If the data doesn't allow to answer the question, reply "I don't have the data to answer your question".
+            # 1. History-aware question rewriter: produces a standalone question string
+            rewrite_prompt = ChatPromptTemplate.from_messages(
+                [
+                    (
+                        "system",
+                        """
+            You are preparing a question for a SQL database.
 
-                Question: {question}
-                SQL Query: {query}
-                SQL Result: {result}
-                Answer: """
+            Produce a standalone question by resolving references using the chat history.
+            
+            Preserve every entity in the question to query the database, including:
+            - airport names
+            - flight numbers
+            - airline names
+            - dates
+            - departure and arrival times
+            - previous constraints
+            - requested changes
+            
+            Only include information that is necessary to answer the latest question.
+            Do not invent information.
+            Do not answer the question.
+            Return only the rewritten question.
+                        """,
+                    ),
+                    MessagesPlaceholder("history"),
+                    ("human", "{question}"),
+                ]
             )
 
-            # Build chain
+            rewrite_question = rewrite_prompt | llm | StrOutputParser()
+
+            # 2. NL question -> SQL query
+            write_query = create_sql_query_chain(llm, self.db, prompt=custom_prompt)
+
+            # 3. SQL query -> SQL result
+            execute_query = QuerySQLDatabaseTool(db=self.db)
+
+            # 4. SQL result -> natural language answer
+            answer_prompt = ChatPromptTemplate.from_messages([
+                ("system", "Given the following user question, corresponding SQL query, and SQL result, "
+                           "answer the user question. If the data doesn't allow to answer the question, "
+                           "reply \"I don't have the data to answer your question\"."),
+                ("human", "Question: {question}\nSQL Query: {query}\nSQL Result: {result}")
+            ])
             answer = answer_prompt | llm | StrOutputParser()
-            self.rag_chain = (
-                    RunnablePassthrough.assign(query=write_query).assign(
-                        result=itemgetter("query") | execute_query
-                    )
-                    | answer
+
+            chain = (
+                RunnablePassthrough.assign(question=rewrite_question)
+                | RunnablePassthrough.assign(query=write_query)
+                | RunnablePassthrough.assign(result=itemgetter("query") | execute_query)
+                | answer
+            )
+
+            self.rag_chain = RunnableWithMessageHistory(
+                chain,
+                self.get_session_history,
+                input_messages_key="question",
+                history_messages_key="history"
             )
 
             logger.info("RAG chain created successfully")
@@ -175,13 +222,19 @@ class RagSystem:
             logger.error(f"Failed to create RAG chain: {e}")
             raise
 
-    def answer_question(self, question: str, history: Optional[list] = None) -> str:
+    def get_session_history(self, session_id: str) -> BaseChatMessageHistory:
+        """Get in-memory message history for a chat session."""
+        if session_id not in self.history_store:
+            self.history_store[session_id] = InMemoryChatMessageHistory()
+        return self.history_store[session_id]
+
+    def answer_question(self, question: str, session_id) -> str:
         """
         Answer a user question using the RAG chain.
 
         Args:
             question: The user's question
-            history: Optional conversation history
+            session_id: Chat session identifier for persistent history
 
         Returns:
             The generated answer
@@ -190,7 +243,10 @@ class RagSystem:
             raise ValueError("RAG chain not initialized. Call create_rag_chain() first.")
 
         try:
-            return self.rag_chain.invoke({"question": question})
+            return self.rag_chain.invoke(
+                {"question": question},
+                config={"configurable": {"session_id": session_id}}
+            )
         except Exception as e:
             logger.error(f"Error answering question: {e}")
             return "I'm sorry, I couldn't process your question."
@@ -231,13 +287,30 @@ class RagSystem:
                 logger.info("Evaluation components not found. Initializing setup...")
                 self._setup_evaluation()
 
-            def answer_fn(question, history=None):
-                return self.answer_question(question, history)
+            def _answer_for_eval(question, history=None):
+                session_id = "evaluation"
+                # Clear previous history and populate with conversation history from the test sample
+                self.history_store[session_id] = InMemoryChatMessageHistory()
+                if history:
+                    for msg in history:
+                        if msg["role"] == "user":
+                            self.history_store[session_id].add_message(HumanMessage(content=msg["content"]))
+                        elif msg["role"] == "assistant":
+                            self.history_store[session_id].add_message(AIMessage(content=msg["content"]))
+                return self.answer_question(question, session_id=session_id)
 
-            report = evaluate(answer_fn, testset=self.testset, knowledge_base=self.knowledge_base)
+            report = evaluate(
+                _answer_for_eval,
+                testset=self.testset,
+                knowledge_base=self.knowledge_base
+            )
 
             report_path = self.config["evaluation"]["report_path"]
             report.to_html(report_path)
+            print(report.correctness_by_question_type())
+            # print(report.failures)
+            df = report.to_pandas()
+            df.to_csv("evaluation_results.csv")
 
             logger.info(f"Evaluation complete. Report saved to {report_path}")
 
@@ -248,40 +321,47 @@ class RagSystem:
 
 def main():
     """Main entry point for the application."""
-    try:
-        # Initialize the RAG system
-        rag_system = RagSystem()
+    # Initialize the RAG system
+    rag_system = RagSystem()
 
-        # Setup the database
-        rag_system.setup_database()
+    # Setup the database
+    rag_system.setup_database()
 
-        # Create the RAG chain
-        rag_system.create_rag_chain()
+    # Create the RAG chain
+    rag_system.create_rag_chain()
 
-        # # Example: Multiple questions in sequence
-        # questions = [
-        #     "How many flights were delayed by more than 30 minutes?",
-        #     "What is the average delay time for United Airlines?",
-        #     "Which day of the week has the most flight cancellations?",
-        #     "It is currently 11:30. What are the next 5 flights?",
-        #     "It is currently 11:30. When is the next flight for AA?" #Checking time format + query with 2 variables
-        # ]
-        #
-        # print("Multiple questions example:")
-        # for question in questions:
-        #     print(f"\nQuestion: {question}")
-        #     answer = rag_system.answer_question(question)
-        #     print(f"Answer: {answer}")
+    # Example: Multiple questions in sequence
+    questions = [
+        "How many flights were delayed by more than 30 minutes?",
+        "What is the average delay time for United Airlines?",
+        "Which day of the week has the most flight cancellations?",
+        "It is currently 11:30. What are the next 5 flights?",
+        "It is currently 11:30. When is the next flight for AA?" #Checking time format + query with 2 variables
+    ]
 
-        # Run evaluation with automatic setup. Reuse Giskard generated test set if available.
-        rag_system.run_evaluation()
+    print("Multiple questions example:")
+    for question in questions:
+        print(f"\nQuestion: {question}")
+        answer = rag_system.answer_question(question, session_id="demo")
+        print(f"Answer: {answer}")
 
-        # logger.info("RAG system evaluation completed successfully")
+    # Example: Conversational session using session-based history
+    print("\n--- Conversational Example ---")
 
-    except Exception as e:
-        logger.error(f"An error occurred in the main function: {e}")
-        raise
+    q1 = "I'm flying from Memphis to Orlando. Is my flight delayed?"
+    print(f"Question 1: {q1}")
+    a1 = rag_system.answer_question(q1, session_id="demo")
+    print(f"Answer: {a1}")
 
+    q2 = "I want to fly to Fort Lauderdale instead. Which flights can I board"
+    print(f"\nQuestion 2: {q2}")
+    a2 = rag_system.answer_question(q2, session_id="demo")
+    print(f"Answer: {a2}")
+    print(f"History after a2: {rag_system.get_session_history('demo').messages}")
+
+
+    # Run evaluation with automatic setup. Reuse Giskard generated test set if available.
+    rag_system.run_evaluation()
 
 if __name__ == '__main__':
     main()

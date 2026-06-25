@@ -118,7 +118,7 @@ class RagSystem:
             temperature = self.config["model"]["temperature"]
 
             #Hotfix for stop-parameter error in newer models.
-            #TODO: removing this changes output
+            #MS: removing this changes output
             original_generate = ChatOpenAI._generate
 
             def patched_generate(self, messages, stop=None, **kwargs):

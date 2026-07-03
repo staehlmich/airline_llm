@@ -6,6 +6,8 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from rag_fly import RagSystem
+from fastapi.middleware.cors import CORSMiddleware
+
 
 # Load environment variables from .env file
 load_dotenv()
@@ -24,6 +26,14 @@ app = FastAPI(
     license_info={
         "name": "MIT"
     }
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Initialize ONCE when the API starts.

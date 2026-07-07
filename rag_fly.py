@@ -3,21 +3,22 @@ import os
 import sqlite3
 from operator import itemgetter
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
 import pandas as pd
 import yaml
-# Import Giskard for evaluation
-from giskard.rag import KnowledgeBase, generate_testset, evaluate, QATestset
+
 from langchain.chains import create_sql_query_chain
 from langchain_community.tools.sql_database.tool import QuerySQLDatabaseTool
 from langchain_community.utilities import SQLDatabase
-from langchain_core.chat_history import BaseChatMessageHistory, InMemoryChatMessageHistory
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.chat_history import (
+    BaseChatMessageHistory,
+    InMemoryChatMessageHistory,
+)
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import MessagesPlaceholder
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnablePassthrough, RunnableLambda
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_openai import ChatOpenAI
 
@@ -239,67 +240,6 @@ class RagSystem:
                 config={"configurable": {"session_id": session_id}}
         )
 
-    def _setup_evaluation(self) -> None:
-        """Set up knowledge base and test set for evaluation."""
-
-        self.knowledge_base = KnowledgeBase(self.df)
-        testset_path = "testset.json"
-
-        if os.path.exists(testset_path):
-            logger.info(f"Loading existing test set from {testset_path}")
-            self.testset = QATestset.load(testset_path)
-        else:
-            num_questions = self.config["evaluation"]["num_questions"]
-            agent_description = self.config["evaluation"]["agent_description"]
-
-            self.testset = generate_testset(
-                self.knowledge_base,
-                num_questions=num_questions,
-                agent_description=agent_description,
-            )
-            self.testset.save(testset_path)
-            logger.info(f"New test set created and saved to {testset_path}")
-
-    def run_evaluation(self) -> None:
-        """Run the evaluation on the test set and generate a report."""
-        try:
-            # Automatically set up evaluation if it hasn't been done yet
-            if self.testset is None or self.knowledge_base is None:
-                logger.info("Evaluation components not found. Initializing setup...")
-                self._setup_evaluation()
-
-            def _answer_for_eval(question, history=None):
-                session_id = "evaluation"
-                # Clear previous history and populate with conversation history from the test sample
-                self.history_store[session_id] = InMemoryChatMessageHistory()
-                if history:
-                    for msg in history:
-                        if msg["role"] == "user":
-                            self.history_store[session_id].add_message(HumanMessage(content=msg["content"]))
-                        elif msg["role"] == "assistant":
-                            self.history_store[session_id].add_message(AIMessage(content=msg["content"]))
-                return self.answer_question(question, session_id=session_id)
-
-            report = evaluate(
-                _answer_for_eval,
-                testset=self.testset,
-                knowledge_base=self.knowledge_base
-            )
-
-            report_path = self.config["evaluation"]["report_path"]
-            report.to_html(report_path)
-            print(report.correctness_by_question_type())
-            # print(report.failures)
-            df = report.to_pandas()
-            df.to_csv("evaluation_results.csv")
-
-            logger.info(f"Evaluation complete. Report saved to {report_path}")
-
-        except Exception as e:
-            logger.error(f"Evaluation failed: {e}")
-            raise
-
-
 def main():
     """Main entry point for the application."""
     # Initialize the RAG system
@@ -328,15 +268,11 @@ def main():
     a1 = rag_system.answer_question(q1, session_id="demo")
     print(f"Answer: {a1}")
 
-    q2 = "I want to fly to Fort Lauderdale instead. Which flights can I board"
+    q2 = "I want to fly to Fort Lauderdale instead. Which flights can I board?"
     print(f"\nQuestion 2: {q2}")
     a2 = rag_system.answer_question(q2, session_id="demo")
     print(f"Answer: {a2}")
     print(f"History after a2: {rag_system._get_session_history('demo').messages}")
-
-
-    # Run evaluation with automatic setup. Reuse Giskard generated test set if available.
-    # rag_system.run_evaluation()
 
 if __name__ == '__main__':
     main()

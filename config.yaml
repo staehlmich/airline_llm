@@ -1,7 +1,7 @@
 # config.yaml
 data:
   csv_path: "data/airlines_delay_sample.csv"
-  db_path: "airlines_delay_sample.db"
+  db_path: "data/airlines_delay_sample.db"
   table_name: "AirlinesDelay"
 
 model:
@@ -9,6 +9,11 @@ model:
   temperature: 0
 
 evaluation:
+  report_path: "report.html"
+  testset_path: "testset.json"
+  results_path: "evaluation_results.csv"
   num_questions: 60
   agent_description: "A chatbot answering questions about flights"
-  report_path: "report.html"
+  model:
+    name: "gpt-3.5-turbo"
+    temperature: 0

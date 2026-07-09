@@ -163,6 +163,8 @@ class RagSystem:
         You are preparing a question for a SQL database.
 
         Produce a standalone question by resolving references using the chat history.
+        If the chat history is empty, return the user's question exactly as it is, 
+        without any modifications, additions, or explanations.
         
         Preserve every entity in the question to query the database, including:
         - airport names
@@ -173,10 +175,10 @@ class RagSystem:
         - previous constraints
         - requested changes
         
-        Only include information that is necessary to answer the latest question.
-        Do not invent information.
-        Do not answer the question.
-        Return only the rewritten question.
+        Constraints: 
+        - Flights are independent: ignore causal or comparative contexts (e.g., "considering flight X is delayed..."). 
+        - Only include information that is necessary to answer the latest question.
+        - Return only the rewritten question.
                     """,
                 ),
                 MessagesPlaceholder("history"),
@@ -185,6 +187,14 @@ class RagSystem:
         )
 
         rewrite_question = rewrite_prompt | llm | StrOutputParser()
+
+        # def print_rewritten(x):
+        #     print(f"[Rewriter] Rewritten question: {x['question']}")
+        #     return x
+
+        # def print_query(x):
+        #     print(f"[SQL Generator] Generated SQL query: {x['query']}")
+        #     return x
 
         # 2. NL question -> SQL query
         write_query = create_sql_query_chain(llm, self.db, prompt=custom_prompt)
@@ -203,7 +213,9 @@ class RagSystem:
 
         chain = (
             RunnablePassthrough.assign(question=rewrite_question)
+            # | RunnableLambda.assign(print_rewritten)
             | RunnablePassthrough.assign(query=write_query)
+            # | RunnableLambda(print_query)
             | RunnablePassthrough.assign(result=itemgetter("query") | execute_query)
             | answer
         )

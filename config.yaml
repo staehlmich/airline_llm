@@ -5,6 +5,7 @@ data:
   table_name: "AirlinesDelay"
 
 model:
+  provider: "openai"
   name: "gpt-3.5-turbo"
   temperature: 0
 

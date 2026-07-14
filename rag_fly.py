@@ -3,7 +3,7 @@ import os
 import sqlite3
 from operator import itemgetter
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import pandas as pd
 import yaml
@@ -16,6 +16,7 @@ from langchain_core.chat_history import (
     InMemoryChatMessageHistory,
 )
 from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough
@@ -24,33 +25,29 @@ from langchain_openai import ChatOpenAI
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+
 class RagSystem:
     """A RAG (Retrieval Augmented Generation) system for answering questions about airline data."""
 
-    def __init__(self, config_path: str = "config.yaml"):
+    def __init__(self, llm: BaseChatModel, config_path: str = "config.yaml"):
         """
-        Initialize the RAG system.
+        Initialize the RAG system with dependency injection.
 
         Args:
+            llm: Language model instance (injected, not created internally)
             config_path: Path to the configuration file
         """
+        self.llm = llm
         self.config = self._load_config(config_path)
         self.db = None
         self.rag_chain = None
         self.knowledge_base = None
-        self.testset = None
         self.history_store: Dict[str, BaseChatMessageHistory] = {}
-
-        # Check for API key
-        api_key = os.environ.get('OPENAI_API_KEY')
-        if not api_key:
-            logger.warning("OPENAI_API_KEY not found in environment variables")
 
         # Automatically set up resources on initialization
         self._setup_database()
@@ -99,7 +96,7 @@ class RagSystem:
 
         # Connect to SQLite database and write data
         conn = sqlite3.connect(db_path)
-        df.to_sql(table_name, conn, if_exists='replace', index=False)
+        df.to_sql(table_name, conn, if_exists="replace", index=False)
         conn.close()
 
         # Connect to the database using LangChain
@@ -111,23 +108,6 @@ class RagSystem:
 
     def _create_rag_chain(self) -> None:
         """Create the RAG chain for answering queries."""
-
-        # Create LLM
-        model_name = self.config["model"]["name"]
-        temperature = self.config["model"]["temperature"]
-
-        #Hotfix for stop-parameter error in newer models.
-        #MS: removing this changes output
-        original_generate = ChatOpenAI._generate
-
-        def patched_generate(self, messages, stop=None, **kwargs):
-            kwargs.pop("stop", None)
-            return original_generate(self, messages, **kwargs)
-
-        ChatOpenAI._generate = patched_generate
-
-        llm = ChatOpenAI(
-            model=model_name)
 
         # Add custom prompt with column descriptions
         template = """
@@ -151,7 +131,6 @@ class RagSystem:
         Question: {input}"""
         custom_prompt = ChatPromptTemplate.from_template(template)
 
-
         # Sequence: chat with history -> rewrite question -> SQL query -> execute -> answer
 
         # 1. History-aware question rewriter: produces a standalone question string
@@ -165,7 +144,7 @@ class RagSystem:
         Produce a standalone question by resolving references using the chat history.
         If the chat history is empty, return the user's question exactly as it is, 
         without any modifications, additions, or explanations.
-        
+
         Preserve every entity in the question to query the database, including:
         - airport names
         - flight numbers
@@ -174,7 +153,7 @@ class RagSystem:
         - departure and arrival times
         - previous constraints
         - requested changes
-        
+
         Constraints: 
         - Flights are independent: ignore causal or comparative contexts (e.g., "considering flight X is delayed..."). 
         - Only include information that is necessary to answer the latest question.
@@ -186,7 +165,7 @@ class RagSystem:
             ]
         )
 
-        rewrite_question = rewrite_prompt | llm | StrOutputParser()
+        rewrite_question = rewrite_prompt | self.llm | StrOutputParser()
 
         # def print_rewritten(x):
         #     print(f"[Rewriter] Rewritten question: {x['question']}")
@@ -197,19 +176,27 @@ class RagSystem:
         #     return x
 
         # 2. NL question -> SQL query
-        write_query = create_sql_query_chain(llm, self.db, prompt=custom_prompt)
+        write_query = create_sql_query_chain(self.llm, self.db, prompt=custom_prompt)
 
         # 3. SQL query -> SQL result
         execute_query = QuerySQLDatabaseTool(db=self.db)
 
         # 4. SQL result -> natural language answer
-        answer_prompt = ChatPromptTemplate.from_messages([
-            ("system", "Given the following user question, corresponding SQL query, and SQL result, "
-                       "answer the user question. If the data doesn't allow to answer the question, "
-                       "reply \"I don't have the data to answer your question\"."),
-            ("human", "Question: {question}\nSQL Query: {query}\nSQL Result: {result}")
-        ])
-        answer = answer_prompt | llm | StrOutputParser()
+        answer_prompt = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    "Given the following user question, corresponding SQL query, and SQL result, "
+                    "answer the user question. If the data doesn't allow to answer the question, "
+                    'reply "I don\'t have the data to answer your question".',
+                ),
+                (
+                    "human",
+                    "Question: {question}\nSQL Query: {query}\nSQL Result: {result}",
+                ),
+            ]
+        )
+        answer = answer_prompt | self.llm | StrOutputParser()
 
         chain = (
             RunnablePassthrough.assign(question=rewrite_question)
@@ -224,7 +211,7 @@ class RagSystem:
             chain,
             self._get_session_history,
             input_messages_key="question",
-            history_messages_key="history"
+            history_messages_key="history",
         )
 
         logger.info("RAG chain created successfully")
@@ -248,43 +235,5 @@ class RagSystem:
         """
 
         return self.rag_chain.invoke(
-                {"question": question},
-                config={"configurable": {"session_id": session_id}}
+            {"question": question}, config={"configurable": {"session_id": session_id}}
         )
-
-def main():
-    """Main entry point for the application."""
-    # Initialize the RAG system
-    rag_system = RagSystem()
-
-    # # Example: Multiple questions in sequence
-    # questions = [
-    #     "How many flights were delayed by more than 30 minutes?",
-    #     "What is the average delay time for United Airlines?",
-    #     "Which day of the week has the most flight cancellations?",
-    #     "It is currently 11:30. What are the next 5 flights?",
-    #     "It is currently 11:30. When is the next flight for AA?" #Checking time format + query with 2 variables
-    # ]
-    #
-    # print("Multiple questions example:")
-    # for question in questions:
-    #     print(f"\nQuestion: {question}")
-    #     answer = rag_system.answer_question(question, session_id="demo")
-    #     print(f"Answer: {answer}")
-
-    # Example: Conversational session using session-based history
-    print("\n--- Conversational Example ---")
-
-    q1 = "I'm flying from Memphis to Orlando. Is my flight delayed?"
-    print(f"Question 1: {q1}")
-    a1 = rag_system.answer_question(q1, session_id="demo")
-    print(f"Answer: {a1}")
-
-    q2 = "I want to fly to Fort Lauderdale instead. Which flights can I board?"
-    print(f"\nQuestion 2: {q2}")
-    a2 = rag_system.answer_question(q2, session_id="demo")
-    print(f"Answer: {a2}")
-    print(f"History after a2: {rag_system._get_session_history('demo').messages}")
-
-if __name__ == '__main__':
-    main()

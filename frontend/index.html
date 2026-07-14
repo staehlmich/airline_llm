@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="icon" href="data:,">
   <title>RAG Chat UI</title>
 
   <!-- Tailwind CDN -->
@@ -12,9 +13,32 @@
 <body class="bg-gray-100 flex flex-col h-screen">
 
   <!-- Header -->
-  <header class="bg-white shadow p-4 text-lg font-semibold">
-    RAG Pipeline Chat
+  <header class="bg-white shadow p-4 flex items-center justify-between">
+    <span class="text-lg font-semibold">RAG Pipeline Chat</span>
+    <button
+      id="settings-toggle"
+      class="text-sm text-gray-500 hover:text-gray-800 flex items-center gap-1"
+    >
+      ⚙️ Settings
+    </button>
   </header>
+
+  <!-- Collapsible Settings Panel -->
+  <div id="settings-panel" class="hidden bg-yellow-50 border-b border-yellow-200 px-4 py-3">
+    <p class="text-sm text-yellow-800 mb-2">
+      Upload your own OpenAI API key to test the application.
+      Your key is stored only in your browser session and is never persisted on the server.
+    </p>
+    <div class="flex items-center gap-2">
+      <label for="api-key-input" class="text-sm font-medium text-gray-700">API Key:</label>
+      <input
+        id="api-key-input"
+        type="password"
+        placeholder="sk-..."
+        class="flex-1 border rounded px-3 py-1 text-sm focus:outline-none focus:ring"
+      />
+    </div>
+  </div>
 
   <!-- Chat container -->
   <main id="chat" class="flex-1 overflow-y-auto p-4 space-y-3">
@@ -23,11 +47,11 @@
 
   <!-- Thinking / loading indicator -->
   <div id="thinking" class="hidden px-4 py-2 text-sm text-gray-500 flex items-center gap-2">
-  <div class="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>
-  <div class="w-2 h-2 bg-gray-500 rounded-full animate-bounce [animation-delay:0.1s]"></div>
-  <div class="w-2 h-2 bg-gray-500 rounded-full animate-bounce [animation-delay:0.2s]"></div>
-  <span class="ml-2">Thinking</span>
-</div>
+    <div class="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>
+    <div class="w-2 h-2 bg-gray-500 rounded-full animate-bounce [animation-delay:0.1s]"></div>
+    <div class="w-2 h-2 bg-gray-500 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+    <span class="ml-2">Thinking</span>
+  </div>
 
   <!-- Input area -->
   <footer class="bg-white p-4 flex gap-2 border-t">
@@ -45,82 +69,7 @@
     </button>
   </footer>
 
-<script>
-const chat = document.getElementById("chat");
-const input = document.getElementById("input");
-const thinking = document.getElementById("thinking");
-
-// 👉 adjust this to your FastAPI endpoint
-const API_URL = "http://127.0.0.1:8000/query";
-
-function addMessage(role, text, meta=null) {
-  const wrapper = document.createElement("div");
-  wrapper.className = role === "user"
-    ? "text-right"
-    : "text-left";
-
-  const bubble = document.createElement("div");
-  bubble.className =
-    "inline-block px-3 py-2 rounded-lg max-w-xl whitespace-pre-wrap " +
-    (role === "user"
-      ? "bg-blue-600 text-white"
-      : "bg-white shadow");
-
-  bubble.innerText = text;
-
-  wrapper.appendChild(bubble);
-
-  // optional eval metrics display
-  if (meta) {
-    const metaDiv = document.createElement("div");
-    metaDiv.className = "text-xs text-gray-400 mt-1";
-    metaDiv.innerText = JSON.stringify(meta);
-    wrapper.appendChild(metaDiv);
-  }
-
-  chat.appendChild(wrapper);
-  chat.scrollTop = chat.scrollHeight;
-}
-
-async function sendMessage() {
-  const query = input.value.trim();
-  if (!query) return;
-
-  addMessage("user", query);
-  input.value = "";
-
-  thinking.classList.remove("hidden");
-
-  try {
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-      question: query,
-      session_id: "default_session"
-      })
-    });
-
-    const data = await res.json();
-
-    addMessage(
-      "assistant",
-      data.answer || "No answer returned",
-      data.metrics
-    );
-
-  } catch (err) {
-    addMessage("assistant", "Error: " + err.message);
-  } finally {
-    thinking.classList.add("hidden");
-  }
-}
-
-// Enter key support
-input.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") sendMessage();
-});
-</script>
+  <script src="app.js"></script>
 
 </body>
 </html>

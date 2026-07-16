@@ -68,8 +68,7 @@ def main():
 
     # # Example: Multiple questions in sequence
     # questions = [
-    #     "How many flights were delayed by more than 30 minutes?",
-    #     "What is the average delay time for United Airlines?",
+    #     "How many flights were delayed by more than 30 minutes?", # -> Answer unsupported by data
     #     "Which day of the week has the most flight cancellations?",
     #     "It is currently 11:30. What are the next 5 flights?",
     #     "It is currently 11:30. When is the next flight for AA?" #Checking time format + query with 2 variables

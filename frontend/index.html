@@ -37,7 +37,19 @@
         placeholder="sk-..."
         class="flex-1 border rounded px-3 py-1 text-sm focus:outline-none focus:ring"
       />
+      <button
+        id="api-key-submit"
+        class="bg-emerald-600 text-white px-3 py-1 rounded text-sm hover:bg-emerald-700"
+      >
+        Submit
+      </button>
     </div>
+    <div id="api-key-status"></div>
+  </div>
+
+  <!-- Disclaimer -->
+  <div class="bg-blue-50 border-b border-blue-200 px-4 py-2 text-xs text-blue-700">
+    This RAG demo uses your own OpenAI API key. Your key is stored only in your browser session and is not persisted on the server.
   </div>
 
   <!-- Chat container -->

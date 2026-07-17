@@ -7,12 +7,13 @@ This script demonstrates the explicit flow:
 
 import logging
 import os
+from pathlib import Path
 
 import yaml
 from dotenv import load_dotenv
 
-from models import create_chat_model
-from rag_fly import RagSystem
+from backend.models import create_chat_model
+from backend.rag import RagSystem
 
 # Configure logging
 logging.basicConfig(
@@ -22,7 +23,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def load_config(config_path: str = "config.yaml") -> dict:
+def load_config(config_path: Path) -> dict:
     """
     Load configuration from YAML file.
 
@@ -32,6 +33,12 @@ def load_config(config_path: str = "config.yaml") -> dict:
     Returns:
         Configuration dictionary
     """
+    # Convert to a Path object for safer cross-platform path handling
+    path = Path(config_path)
+
+    if not path.exists():
+        raise FileNotFoundError(f"Configuration file not found at: {path.resolve()}")
+    
     with open(config_path, "r") as file:
         config = yaml.safe_load(file)
     logger.info(f"Configuration loaded from {config_path}")
@@ -51,7 +58,9 @@ def main():
         return
 
     # 2. Load configuration
-    config = load_config()
+    project_root = Path(__file__).resolve().parent
+    config_path = project_root / "backend" / "config.yaml"
+    config = load_config(config_path)
     model_config = config["model"]
 
     # 3. Create LLM using models.py
@@ -63,7 +72,7 @@ def main():
     logger.info(f"LLM created: {model_config['provider']} - {model_config['name']}")
 
     # 4. Create RagSystem with injected LLM
-    rag_system = RagSystem(llm=llm)
+    rag_system = RagSystem(llm=llm, config_path=config_path)
     logger.info("RAG system initialized")
 
     # # Example: Multiple questions in sequence

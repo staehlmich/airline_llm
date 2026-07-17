@@ -1,13 +1,11 @@
 import logging
-import os
 import sqlite3
 from operator import itemgetter
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import pandas as pd
 import yaml
-
 from langchain.chains import create_sql_query_chain
 from langchain_community.tools.sql_database.tool import QuerySQLDatabaseTool
 from langchain_community.utilities import SQLDatabase
@@ -15,13 +13,14 @@ from langchain_core.chat_history import (
     BaseChatMessageHistory,
     InMemoryChatMessageHistory,
 )
-from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_openai import ChatOpenAI
+
+#Set path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # Configure logging
 logging.basicConfig(
@@ -83,8 +82,8 @@ class RagSystem:
 
     def _setup_database(self) -> None:
         """Set up the SQLite database from the CSV file."""
-        csv_path = Path(self.config["data"]["csv_path"])
-        db_path = Path(self.config["data"]["db_path"])
+        csv_path = PROJECT_ROOT / self.config["data"]["csv_path"]
+        db_path = PROJECT_ROOT / self.config["data"]["db_path"]
         table_name = self.config["data"]["table_name"]
 
         # Check if CSV file exists

@@ -3,12 +3,13 @@ import os
 from pathlib import Path
 
 import yaml
+from dotenv import load_dotenv
 from giskard.rag import KnowledgeBase, QATestset, evaluate, generate_testset
 from langchain_core.chat_history import InMemoryChatMessageHistory
 from langchain_core.messages import AIMessage, HumanMessage
-from dotenv import load_dotenv
 
-from rag_fly import RagSystem
+from backend.models import create_chat_model
+from backend.rag import RagSystem
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -19,7 +20,7 @@ logger.setLevel(logging.INFO)
 # Ensure the working directory is always the project root
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 os.chdir(PROJECT_ROOT)
-CONFIG_PATH = PROJECT_ROOT / "config.yaml"
+CONFIG_PATH = PROJECT_ROOT / "backend" / "config.yaml"
 
 ENV_PATH = PROJECT_ROOT / ".env"
 
@@ -79,7 +80,12 @@ def main() :
         logger.error(f"Failed to load configuration: {e}")
         raise
 
-    rag_system = RagSystem()
+    llm = create_chat_model(
+        provider=config["model"]["provider"],
+        model_name=config["model"]["name"],
+        temperature=config["model"]["temperature"],
+    )
+    rag_system = RagSystem(llm=llm, config_path=CONFIG_PATH)
     evaluator = RagEvaluator(rag_system)
 
     # 1. Setup Giskard Knowledge Base and Test Set

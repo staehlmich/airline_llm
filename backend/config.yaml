@@ -11,7 +11,7 @@ model:
 
 evaluation:
   report_path: "report.html"
-  testset_path: "testset.json"
+  testset_path: "data/testset.json"
   results_path: "evaluation_results.csv"
   num_questions: 60
   agent_description: "A chatbot answering questions about flights"

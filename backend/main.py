@@ -3,24 +3,29 @@ import os
 import threading
 import time
 import uuid
+from pathlib import Path
 
 import yaml
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
-
-from models import create_chat_model
-from rag_fly import RagSystem
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from models import create_chat_model
+from pydantic import BaseModel, Field
+from rag import RagSystem
+
+# Set paths
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+FRONTEND_DIR = PROJECT_ROOT / "frontend"
+CONFIG_PATH = PROJECT_ROOT / "backend" / "config.yaml"
 
 
 # Load environment variables from .env file
 load_dotenv()
 
 # Load model configuration from config.yaml
-with open("config.yaml", "r") as _f:
-    _config = yaml.safe_load(_f)
+with CONFIG_PATH.open("r") as f:
+    _config = yaml.safe_load(f)
 _model_config = _config["model"]
 
 # Configure logging
@@ -31,6 +36,7 @@ DEV_MODE = os.environ.get("DEV_MODE", "false").lower() in ("true", "1", "yes")
 
 # Session expiration timeout in seconds (30 minutes of inactivity)
 SESSION_TIMEOUT_SECONDS = 30 * 60
+
 
 app = FastAPI(
     title="Airline RAG MVP API",
@@ -128,7 +134,7 @@ def _build_rag_engine(api_key: str) -> RagSystem:
         temperature=_model_config["temperature"],
         api_key=api_key,
     )
-    return RagSystem(llm=llm)
+    return RagSystem(llm=llm, config_path=CONFIG_PATH)
 
 
 # ---------------------------------------------------------------------------
@@ -216,4 +222,4 @@ def get_health():
     }
 
 # Serve frontend static files (must be last so API routes take priority)
-app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

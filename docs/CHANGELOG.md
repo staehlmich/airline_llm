@@ -1,7 +1,4 @@
 # Changelog
-
-## Project Evolution
-
 The main architectural progression was:
 ```
 Fine-tuning
@@ -47,4 +44,3 @@ LLM rewrites output to natural language before answering the user.
 - Giskard's [RAG Evaluation Toolkit](https://legacy-docs.giskard.ai/en/stable/open_source/testset_generation/testset_generation/index.html) allows to measure different compnents of the RAG system,
 but in practice it's not so easy to always identify and separate these.
 - RAG system does not support chat history.
-- 

@@ -3,7 +3,9 @@
 This project implements a production-ready Retrieval Augmented Generation (RAG) system for answering questions about airline flight data.
 The system uses a SQL database as the knowledge source and leverages LangChain and OpenAI's models to provide responses to natural language questions about flight information.
 
-[Live Demo] · [GitHub Release] · 
+[Live Demo](https://airline-rag.onrender.com) · [GitHub Release] · 
+
+![application screenshot](docs/rag-app.png)
 
 ---
 
@@ -21,17 +23,13 @@ For example:
 - I'm flying from Memphis to Orlando. Is my flight delayed?
 ```
 
-
-Optional:
-- Screenshot or short GIF of the application
-
 ---
 
 ## Why I Built This
 
 Back in 2023, I wanted to learn how to fine-tune Large Language Models (LLM) with custom data from a real business-application.
 As the technology around LLMs evolved, so did this project.
-You can read about the different stages of this project in CHANGELOG.md. 
+You can read about the different stages of this project in [CHANGELOG.md](docs/CHANGELOG.md). 
 The code of the previous releases is archived under [tags](https://github.com/staehlmich/airline-rag/tags).
 
 I wanted to get hands-on experience with RAG pipelines, as well as deploying a production-ready application.
@@ -46,10 +44,10 @@ An LLM is used to transform user questions into SQL queries.
 
 - **Chat History**: A session is initialized on startup, which stores chat history for better inference.
 - **BYOK**: 'Bring your Own Key' allows you to run the application  using either the front or backend. Currently, only api-keys from OpenAI are supported.
-- **API**: Exposes the RAG pipeline through a FastAPI backend, enabling programmatic interaction with the application.
 - **Evaluation**: Run `/scripts/eval.py` to evaluate the RAG-system with the [Giskard](https://github.com/Giskard-AI/giskard-oss) framework. 
 - **Configuration Management**: Configuration file `/backend/config.yaml` keeps setup of models and paths centralized.
-
+- **API**: Exposes the RAG pipeline through a FastAPI backend, enabling programmatic interaction with the application.
+- **Docker Support:** Provides a containerized setup for reproducible deployment.
 ---
 
 ## How It Works

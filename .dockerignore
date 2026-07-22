@@ -1,0 +1,23 @@
+# Ignore everything by default
+**
+
+# Include required application files
+!requirements.txt
+!backend/
+!backend/**
+!frontend/
+!frontend/**
+data/*
+!data/airlines_delay_sample.db
+!data/airlines_delay_sample.csv
+
+# Exclude unnecessary files even if they exist
+.git/
+.idea/
+.junie/
+.vscode/
+.env
+__pycache__/
+*.pyc
+.aiassistant
+venv

@@ -8,7 +8,6 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from models import create_chat_model
 from pydantic import BaseModel, Field
@@ -49,14 +48,6 @@ app = FastAPI(
     license_info={
         "name": "MIT"
     }
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
 )
 
 # ---------------------------------------------------------------------------

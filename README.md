@@ -117,9 +117,9 @@ If you install this repository to run locally you need to:
 1. Set your OpenAI api-key in the `.env` file.
 2. Run `/scripts/preprocessing.py` to create a neww sample dataset.
 3. You can run the model with `run.py`.
-4. Evaluation
-   5. Run `pip install giskard==2.16.2` for the additional requirements.
-   6. run `/scripts/eval.py`. You can generate a new `testset.json`.
+4. Evaluation 
+   5. Run `pip install giskard==2.16.2` for the additional requirements. 
+   6. run `/scripts/eval.py`. You can generate a new `testset.json`. 
    7. View the latest evaluation results in the `/evaluation` folder.
 
 

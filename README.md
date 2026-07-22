@@ -3,7 +3,7 @@
 This project implements a production-ready Retrieval Augmented Generation (RAG) system for answering questions about airline flight data.
 The system uses a SQL database as the knowledge source and leverages LangChain and OpenAI's models to provide responses to natural language questions about flight information.
 
-[Live Demo](https://airline-rag.onrender.com) · [GitHub Release] · 
+[Live Demo](https://airline-rag.onrender.com)
 
 ![application screenshot](docs/rag-app.png)
 
